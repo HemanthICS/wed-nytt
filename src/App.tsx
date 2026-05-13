@@ -10,6 +10,8 @@ import whyGovernance from './assets/why-governance.svg';
 import { AiEnergyFlowOverlay } from './components/AiEnergyFlowOverlay';
 import { AiOpportunityRadar } from './components/AiOpportunityRadar';
 import { TestimonialsSlider } from './components/TestimonialsSlider';
+import { PlatformRail } from './components/PlatformRail';
+import { SenzaiLoopTransition } from './components/SenzaiLoopTransition';
 
 // ─── PipelineArc ─────────────────────────────────────────────────────────────
 const PIPELINE_LABELS = [
@@ -814,55 +816,15 @@ export default function App() {
         </motion.div>
       </motion.div>
 
-      <motion.div className="loop-steps" variants={staggerContainer}>
-        <motion.div
-          className="loop-step"
-          variants={staggerItem}
-          whileHover={reduce ? undefined : { y: -6, transition: { duration: 0.35, ease: EASE } }}
-          whileTap={reduce ? undefined : { scale: 0.99 }}
-        >
-          <div className="ls-n">01</div>
-          <div className="ls-t">Decide</div>
-        </motion.div>
-        <motion.div
-          className="loop-step"
-          variants={staggerItem}
-          whileHover={reduce ? undefined : { y: -6, transition: { duration: 0.35, ease: EASE } }}
-          whileTap={reduce ? undefined : { scale: 0.99 }}
-        >
-          <div className="ls-n">02</div>
-          <div className="ls-t">Design</div>
-        </motion.div>
-        <motion.div
-          className="loop-step"
-          variants={staggerItem}
-          whileHover={reduce ? undefined : { y: -6, transition: { duration: 0.35, ease: EASE } }}
-          whileTap={reduce ? undefined : { scale: 0.99 }}
-        >
-          <div className="ls-n">03</div>
-          <div className="ls-t">Accelerate</div>
-        </motion.div>
-        <motion.div
-          className="loop-step"
-          variants={staggerItem}
-          whileHover={reduce ? undefined : { y: -6, transition: { duration: 0.35, ease: EASE } }}
-          whileTap={reduce ? undefined : { scale: 0.99 }}
-        >
-          <div className="ls-n">04</div>
-          <div className="ls-t">Govern</div>
-        </motion.div>
-        <motion.div
-          className="loop-step"
-          variants={staggerItem}
-          whileHover={reduce ? undefined : { y: -6, transition: { duration: 0.35, ease: EASE } }}
-          whileTap={reduce ? undefined : { scale: 0.99 }}
-        >
-          <div className="ls-n">05</div>
-          <div className="ls-t">Reuse</div>
-        </motion.div>
-      </motion.div>
+      <SenzaiLoopTransition />
     </motion.div>
   </motion.section>
+
+
+  {/* ── PLATFORM (Drum Rail + Sections) ── */}
+  <div className="platform-stages-shell" id="platform">
+    <PlatformRail scrollToSection={(id, b) => scrollToSectionId(id, b ?? 'smooth')} />
+    <div className="platform-stages-main">
 
 
   {/* DECIDE */}
@@ -1232,6 +1194,9 @@ export default function App() {
       </motion.div>
     </motion.div>
   </motion.section>
+
+    </div>{/* end platform-stages-main */}
+  </div>{/* end platform-stages-shell */}
 
 
   {/* TESTIMONIALS — placeholder, marked */}

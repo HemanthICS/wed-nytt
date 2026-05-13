@@ -1,5 +1,6 @@
 import { motion, useReducedMotion } from 'framer-motion';
 import { useCallback, useLayoutEffect, useRef, useState } from 'react';
+import { PIPELINE_CONVERGENCE_OFFSET_FROM_BOTTOM } from '../pipelineConstants';
 
 type Point = { x: number; y: number };
 
@@ -11,15 +12,20 @@ function pathLengthFromD(d: string): number {
   return p.getTotalLength();
 }
 
-/** Single vertical segment (center spine) — collinear anchors collapse to one line. */
-function verticalSpinePath(cx: number, points: Point[]): string {
-  if (points.length === 0) return '';
-  const sorted = [...points].sort((a, b) => a.y - b.y);
-  const y0 = sorted[0].y;
-  const y1 = sorted[sorted.length - 1].y;
-  if (sorted.length === 1) return `M ${cx} ${y0}`;
-  return `M ${cx} ${y0} L ${cx} ${y1}`;
+/** Single vertical segment (center spine). */
+function verticalSpinePath(cx: number, yTop: number, yBottom: number): string {
+  if (yBottom <= yTop + 1) return '';
+  return `M ${cx} ${yTop} L ${cx} ${yBottom}`;
 }
+
+type Geom = {
+  w: number;
+  h: number;
+  d: string;
+  len: number;
+  rootY: number;
+  nodePoints: Point[];
+};
 
 type Props = {
   containerRef: React.RefObject<HTMLDivElement | null>;
@@ -29,26 +35,14 @@ export function AiEnergyFlowOverlay({ containerRef }: Props) {
   const reduce = useReducedMotion() === true;
   const rafMeasureRef = useRef<number>(0);
   const spinePathRef = useRef<SVGPathElement>(null);
-  const [geom, setGeom] = useState<{
-    w: number;
-    h: number;
-    d: string;
-    nodes: Point[];
-    len: number;
-    startY: number;
-    endY: number;
-    startScroll: number;
-    endScroll: number;
-  } | null>(null);
-  const geomRef = useRef<typeof geom>(null);
+  const [geom, setGeom] = useState<Geom | null>(null);
   const [scrollT, setScrollT] = useState(0);
   const [traveler, setTraveler] = useState<Point | null>(null);
 
   const readScrollProgress = useCallback(() => {
-    const g = geomRef.current;
-    if (!g) return 0;
-    const span = Math.max(1, g.endScroll - g.startScroll);
-    return Math.min(1, Math.max(0, (window.scrollY - g.startScroll) / span));
+    const scrollEl = document.scrollingElement ?? document.documentElement;
+    const maxScroll = Math.max(1, scrollEl.scrollHeight - window.innerHeight);
+    return Math.min(1, Math.max(0, window.scrollY / maxScroll));
   }, []);
 
   const measure = useCallback(() => {
@@ -65,53 +59,61 @@ export function AiEnergyFlowOverlay({ containerRef }: Props) {
       const r = el.getBoundingClientRect();
       return r.top - rootRect.top + r.height * yBias;
     };
-    const absTop = (el: Element | null): number | null => {
-      if (!(el instanceof HTMLElement)) return null;
-      return el.getBoundingClientRect().top + window.scrollY;
-    };
 
-    const pts: Point[] = [];
+    const canvas = root.querySelector('.pipeline-canvas');
+    let rootY: number | null = null;
 
-    const hero = document.getElementById('hero');
-    const heroY = relY(hero, 0.42);
-    if (heroY != null) pts.push({ x: cx, y: heroY });
-
-    for (const id of STAGE_ANCHOR_IDS) {
-      const el = document.getElementById(id);
-      const y = relY(el, 0.12);
-      if (y != null) pts.push({ x: cx, y });
+    if (canvas instanceof HTMLCanvasElement) {
+      const cRect = canvas.getBoundingClientRect();
+      rootY = cRect.top - rootRect.top + cRect.height - PIPELINE_CONVERGENCE_OFFSET_FROM_BOTTOM;
     }
 
-    const foot = root.querySelector('.site-foot');
-    const footY = relY(foot, 0.2);
-    if (footY != null) pts.push({ x: cx, y: footY });
+    if (rootY == null) {
+      const pipeline = root.querySelector('.hero-pipeline');
+      const py = relY(pipeline, 0.88);
+      if (py != null) rootY = py;
+    }
 
-    if (pts.length < 2) {
+    if (rootY == null) {
       setGeom(null);
       return;
     }
 
-    const nodes = pts.map((p) => ({ x: cx, y: p.y }));
-    const sortedNodes = [...nodes].sort((a, b) => a.y - b.y);
-    const startY = sortedNodes[0].y;
-    const endY = sortedNodes[sortedNodes.length - 1].y;
-    const d = verticalSpinePath(cx, nodes);
-    const len = pathLengthFromD(d);
-    const heroTop = absTop(hero) ?? 0;
-    const footTop = absTop(foot) ?? heroTop + 1;
-    const startScroll = Math.max(0, heroTop - window.innerHeight * 0.18);
-    const endScroll = Math.max(startScroll + 1, footTop - window.innerHeight * 0.62);
+    const foot = root.querySelector('.site-foot');
+    let bottomY =
+      foot instanceof HTMLElement
+        ? foot.getBoundingClientRect().bottom - rootRect.top
+        : h - 12;
 
-    setGeom({ w, h, d, nodes, len, startY, endY, startScroll, endScroll });
+    bottomY = Math.min(h, Math.max(bottomY, rootY + 80));
+
+    const d = verticalSpinePath(cx, rootY, bottomY);
+    const len = d ? pathLengthFromD(d) : 0;
+
+    if (len <= 0) {
+      setGeom(null);
+      return;
+    }
+
+    const nodePoints: Point[] = [{ x: cx, y: rootY }];
+    for (const id of STAGE_ANCHOR_IDS) {
+      const el = document.getElementById(id);
+      const y = relY(el, 0.5);
+      if (y != null && y > rootY + 24 && y < bottomY - 8) {
+        nodePoints.push({ x: cx, y });
+      }
+    }
+
+    setGeom({ w, h, d, len, rootY, nodePoints });
   }, [containerRef]);
 
-  const syncTravelerToPath = useCallback((t: number, d: string, len: number) => {
+  const syncTravelerToPath = useCallback((t: number, dPath: string, lenHint: number) => {
     const pathEl = spinePathRef.current;
-    if (!pathEl || len <= 0) {
+    if (!pathEl || lenHint <= 0) {
       setTraveler(null);
       return;
     }
-    pathEl.setAttribute('d', d);
+    pathEl.setAttribute('d', dPath);
     const L = pathEl.getTotalLength();
     if (L <= 0) {
       setTraveler(null);
@@ -121,10 +123,6 @@ export function AiEnergyFlowOverlay({ containerRef }: Props) {
     const pt = pathEl.getPointAtLength(dist);
     setTraveler({ x: pt.x, y: pt.y });
   }, []);
-
-  useLayoutEffect(() => {
-    geomRef.current = geom;
-  }, [geom]);
 
   useLayoutEffect(() => {
     const root = containerRef.current;
@@ -169,18 +167,11 @@ export function AiEnergyFlowOverlay({ containerRef }: Props) {
     return <div className="ai-energy-flow" aria-hidden="true" />;
   }
 
-  const { w, h, d, nodes, len, startY } = geom;
-  const dashPattern = len > 0 ? `${Math.max(24, len * 0.06)} ${Math.max(40, len * 0.14)}` : '80 120';
-  const cx = w * 0.5;
-  const branchTop = Math.max(10, startY - Math.min(260, h * 0.24));
-  const leftWideX = Math.max(10, cx - Math.min(260, w * 0.34));
-  const leftMidX = Math.max(10, cx - Math.min(160, w * 0.2));
-  const rightWideX = Math.min(w - 10, cx + Math.min(280, w * 0.36));
-  const branchPaths = [
-    `M ${leftWideX} ${branchTop} C ${leftWideX + 120} ${branchTop + 16} ${cx - 18} ${startY - 78} ${cx} ${startY}`,
-    `M ${leftMidX} ${Math.max(8, branchTop - 8)} C ${leftMidX + 72} ${branchTop + 12} ${cx - 10} ${startY - 72} ${cx} ${startY}`,
-    `M ${rightWideX} ${Math.max(10, branchTop + 4)} C ${rightWideX - 130} ${branchTop + 26} ${cx + 20} ${startY - 76} ${cx} ${startY}`,
-  ];
+  const { w, h, d, len, nodePoints } = geom;
+
+  const dashSeg = Math.max(30, len * 0.04);
+  const dashGap = Math.max(60, len * 0.12);
+  const dashPattern = `${dashSeg} ${dashGap}`;
 
   return (
     <div className="ai-energy-flow" aria-hidden="true">
@@ -192,138 +183,138 @@ export function AiEnergyFlowOverlay({ containerRef }: Props) {
         preserveAspectRatio="none"
       >
         <defs>
-          <linearGradient id="ai-energy-stroke" x1="0%" y1="0%" x2="0%" y2="100%">
-            <stop offset="0%" stopColor="#6ba3c4" stopOpacity="0.08" />
-            <stop offset="40%" stopColor="#8fd4ea" stopOpacity="0.18" />
-            <stop offset="72%" stopColor="#6b9bd4" stopOpacity="0.14" />
-            <stop offset="100%" stopColor="#5a7ab0" stopOpacity="0.06" />
+          <linearGradient id="ai-spine-grad" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stopColor="#7ecde9" stopOpacity="0.0" />
+            <stop offset="8%" stopColor="#7ecde9" stopOpacity="0.55" />
+            <stop offset="45%" stopColor="#a8e8ff" stopOpacity="0.70" />
+            <stop offset="80%" stopColor="#7ecde9" stopOpacity="0.60" />
+            <stop offset="100%" stopColor="#7ecde9" stopOpacity="0.20" />
           </linearGradient>
-          <linearGradient id="ai-energy-trail" x1="0%" y1="0%" x2="100%" y2="0%">
-            <stop offset="0%" stopColor="#7ec8e3" stopOpacity="0" />
-            <stop offset="45%" stopColor="#a8e6ff" stopOpacity="0.35" />
-            <stop offset="55%" stopColor="#e8fbff" stopOpacity="0.5" />
-            <stop offset="65%" stopColor="#7ec8e3" stopOpacity="0.32" />
-            <stop offset="100%" stopColor="#7ec8e3" stopOpacity="0" />
+
+          <linearGradient id="ai-trail-grad" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stopColor="#c8f0ff" stopOpacity="0" />
+            <stop offset="40%" stopColor="#c8f0ff" stopOpacity="0.55" />
+            <stop offset="55%" stopColor="#ffffff" stopOpacity="0.75" />
+            <stop offset="70%" stopColor="#c8f0ff" stopOpacity="0.45" />
+            <stop offset="100%" stopColor="#c8f0ff" stopOpacity="0" />
           </linearGradient>
-          <radialGradient id="ai-energy-traveler-halo" cx="50%" cy="50%" r="50%">
-            <stop offset="0%" stopColor="#c8f0ff" stopOpacity="0.55" />
-            <stop offset="45%" stopColor="#7ec8e3" stopOpacity="0.22" />
-            <stop offset="100%" stopColor="#5a8ab0" stopOpacity="0" />
+
+          <radialGradient id="ai-traveler-halo" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stopColor="#c8f0ff" stopOpacity="0.80" />
+            <stop offset="35%" stopColor="#7ecde9" stopOpacity="0.45" />
+            <stop offset="70%" stopColor="#4aa8c8" stopOpacity="0.18" />
+            <stop offset="100%" stopColor="#4aa8c8" stopOpacity="0" />
           </radialGradient>
-          <filter id="ai-energy-glow" x="-20%" y="-20%" width="140%" height="140%">
-            <feGaussianBlur stdDeviation="3.2" result="blur" />
+
+          <filter id="ai-spine-glow" x="-60%" y="-2%" width="220%" height="104%">
+            <feGaussianBlur stdDeviation="5" result="blur1" />
+            <feGaussianBlur stdDeviation="2" result="blur2" in="SourceGraphic" />
             <feMerge>
-              <feMergeNode in="blur" />
+              <feMergeNode in="blur1" />
+              <feMergeNode in="blur2" />
               <feMergeNode in="SourceGraphic" />
             </feMerge>
           </filter>
-          <filter id="ai-energy-node" x="-100%" y="-100%" width="300%" height="300%">
-            <feGaussianBlur stdDeviation="2" result="nb" />
-            <feMerge>
-              <feMergeNode in="nb" />
-              <feMergeNode in="SourceGraphic" />
-            </feMerge>
-          </filter>
-          <filter id="ai-energy-traveler-glow" x="-80%" y="-80%" width="260%" height="260%">
-            <feGaussianBlur stdDeviation="4" result="tg" />
+
+          <filter id="ai-traveler-glow" x="-150%" y="-150%" width="400%" height="400%">
+            <feGaussianBlur stdDeviation="8" result="tg" />
             <feMerge>
               <feMergeNode in="tg" />
               <feMergeNode in="SourceGraphic" />
             </feMerge>
           </filter>
-          <linearGradient id="ai-energy-branch-stroke" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="#6bb7dc" stopOpacity="0.32" />
-            <stop offset="55%" stopColor="#8fd4ea" stopOpacity="0.24" />
-            <stop offset="100%" stopColor="#8fd4ea" stopOpacity="0.14" />
-          </linearGradient>
+
+          <filter id="ai-node-glow" x="-100%" y="-100%" width="300%" height="300%">
+            <feGaussianBlur stdDeviation="3" result="nb" />
+            <feMerge>
+              <feMergeNode in="nb" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
         </defs>
 
-        {/* Geometry source for getPointAtLength — must match visible spine */}
         <path ref={spinePathRef} d={d} fill="none" stroke="none" opacity={0} aria-hidden />
 
         <motion.g
-          style={{ transformOrigin: '50% 50%' }}
-          animate={reduce ? undefined : { opacity: [0.72, 0.92, 0.72] }}
-          transition={reduce ? undefined : { duration: 5.5, repeat: Infinity, ease: 'easeInOut' }}
+          animate={reduce ? undefined : { opacity: [0.75, 1, 0.75] }}
+          transition={reduce ? undefined : { duration: 4, repeat: Infinity, ease: 'easeInOut' }}
         >
-          {branchPaths.map((bp, idx) => (
-            <path
-              key={idx}
-              d={bp}
-              fill="none"
-              stroke="url(#ai-energy-branch-stroke)"
-              strokeWidth={1.8}
-              strokeLinecap="round"
-              filter="url(#ai-energy-glow)"
-              opacity={0.52}
-            />
-          ))}
           <path
             d={d}
             fill="none"
-            stroke="url(#ai-energy-stroke)"
-            strokeWidth={2.4}
+            stroke="url(#ai-spine-grad)"
+            strokeWidth={8}
             strokeLinecap="round"
-            strokeLinejoin="round"
-            filter="url(#ai-energy-glow)"
-            opacity={0.55}
+            filter="url(#ai-spine-glow)"
+            opacity={0.35}
           />
           <path
             d={d}
             fill="none"
-            stroke="url(#ai-energy-stroke)"
-            strokeWidth={0.85}
+            stroke="url(#ai-spine-grad)"
+            strokeWidth={2}
             strokeLinecap="round"
             strokeLinejoin="round"
-            opacity={0.42}
+            opacity={0.9}
           />
+          <path
+            d={d}
+            fill="none"
+            stroke="rgba(220, 248, 255, 0.65)"
+            strokeWidth={0.8}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            opacity={0.7}
+          />
+
           {!reduce && len > 0 && (
             <>
               <motion.path
                 d={d}
                 fill="none"
-                stroke="url(#ai-energy-trail)"
-                strokeWidth={1.6}
+                stroke="url(#ai-trail-grad)"
+                strokeWidth={2.5}
                 strokeLinecap="round"
                 strokeDasharray={dashPattern}
                 initial={{ strokeDashoffset: 0 }}
-                animate={{ strokeDashoffset: -len * 1.2 }}
-                transition={{ duration: 22, repeat: Infinity, ease: 'linear' }}
-                opacity={0.55}
+                animate={{ strokeDashoffset: -len * 1.3 }}
+                transition={{ duration: 16, repeat: Infinity, ease: 'linear' }}
+                opacity={0.7}
               />
               <motion.path
                 d={d}
                 fill="none"
-                stroke="rgba(180, 230, 255, 0.18)"
-                strokeWidth={0.55}
+                stroke="rgba(210, 245, 255, 0.30)"
+                strokeWidth={1}
                 strokeLinecap="round"
-                strokeDasharray={`${Math.max(6, len * 0.008)} ${Math.max(28, len * 0.05)}`}
+                strokeDasharray={`${Math.max(8, len * 0.006)} ${Math.max(35, len * 0.06)}`}
                 initial={{ strokeDashoffset: 0 }}
                 animate={{ strokeDashoffset: -len }}
-                transition={{ duration: 14, repeat: Infinity, ease: 'linear' }}
+                transition={{ duration: 10, repeat: Infinity, ease: 'linear' }}
               />
             </>
           )}
         </motion.g>
 
-        {nodes.map((n, i) => (
+        {nodePoints.map((n, i) => (
           <g key={i} transform={`translate(${n.x} ${n.y})`}>
-            <circle r={10} fill="rgba(100, 180, 220, 0.06)" filter="url(#ai-energy-node)" />
-            <circle r={3.2} fill="rgba(200, 240, 255, 0.22)" />
-            <circle r={1.35} fill="rgba(240, 252, 255, 0.55)" />
+            <circle r={18} fill="rgba(74, 168, 200, 0.06)" filter="url(#ai-node-glow)" />
+            <circle r={5} fill="rgba(180, 230, 255, 0.18)" />
+            <circle r={2.2} fill="rgba(220, 248, 255, 0.70)" />
+            <circle r={1.0} fill="rgba(255, 255, 255, 0.90)" />
             {!reduce && (
               <motion.circle
-                r={5.5}
+                r={8}
                 fill="none"
-                stroke="rgba(140, 210, 235, 0.2)"
-                strokeWidth={0.5}
-                initial={{ opacity: 0.2 }}
-                animate={{ opacity: [0.2, 0.48, 0.2] }}
+                stroke="rgba(120, 200, 230, 0.28)"
+                strokeWidth={0.7}
+                initial={{ opacity: 0.28 }}
+                animate={{ opacity: [0.28, 0.60, 0.28] }}
                 transition={{
-                  duration: 2.8,
+                  duration: 2.5,
                   repeat: Infinity,
                   ease: 'easeInOut',
-                  delay: i * 0.35,
+                  delay: i * 0.4,
                 }}
               />
             )}
@@ -332,18 +323,19 @@ export function AiEnergyFlowOverlay({ containerRef }: Props) {
 
         {traveler && (
           <g transform={`translate(${traveler.x} ${traveler.y})`} className="ai-energy-flow__traveler">
-            <circle r={26} fill="url(#ai-energy-traveler-halo)" opacity={0.85} />
-            <circle r={8} fill="rgba(126, 200, 227, 0.35)" filter="url(#ai-energy-traveler-glow)" />
-            <circle r={3.2} fill="#f8fdff" />
-            <circle r={1.25} fill="#ffffff" />
+            <circle r={42} fill="url(#ai-traveler-halo)" opacity={0.5} />
+            <circle r={18} fill="rgba(126, 200, 227, 0.22)" filter="url(#ai-traveler-glow)" />
+            <circle r={7} fill="rgba(180, 235, 255, 0.55)" filter="url(#ai-traveler-glow)" />
+            <circle r={3.5} fill="#f0faff" />
+            <circle r={1.5} fill="#ffffff" />
             {!reduce && (
               <motion.circle
-                r={14}
+                r={16}
                 fill="none"
-                stroke="rgba(180, 235, 255, 0.35)"
-                strokeWidth={0.6}
-                animate={{ opacity: [0.35, 0.08, 0.35], r: [12, 18, 12] }}
-                transition={{ duration: 2.2, repeat: Infinity, ease: 'easeInOut' }}
+                stroke="rgba(160, 230, 255, 0.50)"
+                strokeWidth={0.9}
+                animate={{ opacity: [0.5, 0.1, 0.5], r: [14, 22, 14] }}
+                transition={{ duration: 1.8, repeat: Infinity, ease: 'easeInOut' }}
               />
             )}
           </g>
