@@ -46,6 +46,7 @@
   perspective: 800px;
   user-select: none;
   position: relative;
+  isolation: isolate;
 
   transform:
     perspective(1000px)
@@ -56,7 +57,9 @@
   transition:
     transform var(--ts-transition-dur) var(--ts-transition-ease),
     opacity var(--ts-transition-dur) var(--ts-transition-ease),
-    filter var(--ts-transition-dur) var(--ts-transition-ease);
+    filter var(--ts-transition-dur) var(--ts-transition-ease),
+    box-shadow 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+  border-radius: 22px;
 }
 
 .ts-slide[data-state='current'] {
@@ -102,6 +105,30 @@
   --ts-scale: 1.05;
 }
 
+/* Tight white→cyan bloom on the card only (no wide spill onto neighbors) */
+.ts-slide:hover {
+  box-shadow:
+    0 0 0 1px rgba(0, 255, 255, 0.16),
+    0 0 10px rgba(255, 255, 255, 0.06),
+    0 0 22px rgba(0, 255, 255, 0.22),
+    0 0 36px rgba(127, 249, 255, 0.14);
+}
+
+.ts-slide[data-state='current']:hover {
+  box-shadow:
+    0 0 0 1px rgba(0, 255, 255, 0.2),
+    0 0 12px rgba(255, 255, 255, 0.07),
+    0 0 26px rgba(0, 255, 255, 0.28),
+    0 0 42px rgba(127, 249, 255, 0.18);
+}
+
+.ts-slide:hover .ts-slide__inner {
+  border-color: rgba(127, 249, 255, 0.42);
+  box-shadow:
+    0 4px 32px rgba(0, 0, 0, 0.45),
+    0 1px 0 rgba(255, 255, 255, 0.09) inset;
+}
+
 .ts-slide__inner {
   --rotX: 0deg;
   --rotY: 0deg;
@@ -111,7 +138,6 @@
   height: 100%;
   transform-style: preserve-3d;
   transform: rotateX(var(--rotX)) rotateY(var(--rotY));
-  transition: transform 0.1s linear;
 
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid rgba(255, 255, 255, 0.1);
@@ -126,6 +152,10 @@
   box-shadow:
     0 4px 32px rgba(0, 0, 0, 0.4),
     0 1px 0 rgba(255, 255, 255, 0.06) inset;
+  transition:
+    transform 0.1s linear,
+    border-color 0.45s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.45s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .ts-slide__inner::before {
@@ -133,14 +163,48 @@
   position: absolute;
   inset: 0;
   border-radius: inherit;
+  z-index: 0;
   background: linear-gradient(135deg, rgba(255, 255, 255, 0.07) 0%, transparent 60%);
   pointer-events: none;
+}
+
+/* Soft lens glow — clipped to card; fades in on hover */
+.ts-slide__inner::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  z-index: 1;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+  background:
+    radial-gradient(
+      ellipse 68% 54% at 50% 46%,
+      rgba(255, 255, 255, 0.12) 0%,
+      rgba(127, 249, 255, 0.18) 20%,
+      rgba(0, 255, 255, 0.1) 44%,
+      transparent 70%
+    ),
+    linear-gradient(
+      90deg,
+      transparent 0%,
+      transparent calc(50% - 1px),
+      rgba(0, 255, 255, 0.09) 50%,
+      transparent calc(50% + 1px),
+      transparent 100%
+    );
+}
+
+.ts-slide:hover .ts-slide__inner::after {
+  opacity: 0.78;
 }
 
 .ts-slide__qq {
   position: absolute;
   top: 14px;
   left: 20px;
+  z-index: 2;
   font-size: clamp(2.5rem, 10cqw, 3.75rem);
   line-height: 1;
   font-family: var(--f-d, 'Space Grotesk', 'Inter', sans-serif);

@@ -431,6 +431,9 @@ a { color: inherit; text-decoration: none; }
   gap: 6px;
 }
 .nav-links a {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
   font-family: var(--f-d);
   font-size: 13.5px;
   font-weight: 450;
@@ -439,10 +442,45 @@ a { color: inherit; text-decoration: none; }
   border-radius: 6px;
   transition: color 0.18s ease, background 0.18s ease;
   letter-spacing: 0.01em;
+  text-decoration: none;
 }
-.nav-links a:hover {
-  color: #fff;
+.nav-links a::before,
+.nav-links a::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  width: 100%;
+  height: 2px;
+  background: linear-gradient(to right, #ff0000, #00ffff);
+  transform: scaleX(0);
+  transition: transform 0.4s ease-out;
+  pointer-events: none;
+  border-radius: 1px;
+}
+.nav-links a::after {
+  bottom: 3px;
+  transform-origin: right;
+}
+.nav-links a::before {
+  top: 3px;
+  transform-origin: left;
+}
+.nav-links a:hover,
+.nav-links a:focus-visible {
+  color: #7ecde9;
   background: rgba(255,255,255,0.06);
+}
+.nav-links a:hover::after,
+.nav-links a:hover::before,
+.nav-links a:focus-visible::after,
+.nav-links a:focus-visible::before {
+  transform: scaleX(1);
+}
+@media (prefers-reduced-motion: reduce) {
+  .nav-links a::before,
+  .nav-links a::after {
+    transition-duration: 0.01ms;
+  }
 }
 
 /* Right-side actions group */
@@ -706,6 +744,7 @@ a { color: inherit; text-decoration: none; }
     0 1px 0 rgba(255, 255, 255, 0.05) inset,
     0 24px 48px rgba(0, 0, 0, 0.35);
   transform-style: flat;
+  isolation: isolate;
   transition:
     border-color 0.4s cubic-bezier(0.22, 1, 0.36, 1),
     background 0.4s ease,
@@ -718,23 +757,49 @@ a { color: inherit; text-decoration: none; }
   inset: 0;
   border-radius: inherit;
   pointer-events: none;
+  z-index: 0;
   opacity: 0;
   transition: opacity 0.4s ease;
-  background: radial-gradient(120% 80% at 50% 0%, rgba(96, 165, 250, 0.12), transparent 55%);
+  /* Soft lens: white core → electric cyan; stays inside the card */
+  background:
+    radial-gradient(
+      ellipse 72% 58% at 50% 48%,
+      rgba(255, 255, 255, 0.16) 0%,
+      rgba(127, 249, 255, 0.22) 18%,
+      rgba(0, 255, 255, 0.12) 42%,
+      transparent 68%
+    ),
+    linear-gradient(
+      90deg,
+      transparent 0%,
+      transparent calc(50% - 1px),
+      rgba(0, 255, 255, 0.1) 50%,
+      transparent calc(50% + 1px),
+      transparent 100%
+    );
 }
 
 .loop-step:hover {
-  border-color: rgba(96, 165, 250, 0.35);
-  background: rgba(30, 41, 59, 0.55);
+  border-color: rgba(127, 249, 255, 0.42);
+  background: rgba(30, 41, 59, 0.62);
+  /* Tight bloom only — does not spill across the row */
   box-shadow:
-    0 1px 0 rgba(255, 255, 255, 0.06) inset,
-    0 20px 50px rgba(0, 0, 0, 0.45),
-    0 0 0 1px rgba(59, 130, 246, 0.12),
-    0 0 40px rgba(59, 130, 246, 0.18);
+    0 1px 0 rgba(255, 255, 255, 0.08) inset,
+    0 18px 44px rgba(0, 0, 0, 0.48),
+    0 0 0 1px rgba(0, 255, 255, 0.2),
+    0 0 12px rgba(255, 255, 255, 0.06),
+    0 0 26px rgba(0, 255, 255, 0.28),
+    0 0 40px rgba(127, 249, 255, 0.18);
 }
 
 .loop-step:hover::after {
-  opacity: 1;
+  opacity: 0.85;
+}
+
+.loop-step .ls-n,
+.loop-step .ls-t {
+  position: relative;
+  z-index: 1;
 }
 
 .ls-n {
@@ -921,10 +986,10 @@ h3 {
 /* ============================================================
    HERO
    ============================================================ */
-.stage-hero { padding-top: 100px; padding-bottom: 60px; }
+/* Hero fold spacing: see `.stage.stage-hero` (Reference-style section skin) */
 .hero-inner {
   text-align: center;
-  max-width: 760px;
+  max-width: min(880px, calc(100vw - 48px));
   margin: 0 auto;
   position: relative;
 }
@@ -984,35 +1049,35 @@ h3 {
   display: inline-flex;
   align-items: center;
   gap: 10px;
-  padding: 6px 18px 6px 14px;
+  padding: 7px 20px 7px 15px;
   border-radius: 100px;
   background: rgba(61, 82, 160, 0.2);
   border: 1px solid var(--bdr-2);
   font-family: var(--f-d);
-  font-size: 11px;
+  font-size: clamp(10px, 0.85vw, 12px);
   font-weight: 600;
-  letter-spacing: .15em;
+  letter-spacing: .14em;
   text-transform: uppercase;
   color: var(--mc-lavender);
-  margin-bottom: 16px;
+  margin-bottom: 20px;
   box-shadow: 0 0 32px rgba(112, 145, 230, 0.1);
 }
 .hero-title {
-  font-size: clamp(32px, 5vw, 64px);
+  font-size: clamp(38px, 5.8vw, 76px);
   font-weight: 400;
-  line-height: 1.12;
-  letter-spacing: -.01em;
-  margin-bottom: 20px;
+  line-height: 1.1;
+  letter-spacing: -.02em;
+  margin-bottom: 22px;
   position: relative;
   z-index: 1;
   color: #7ecde9;
 }
 .hero-sub {
-  font-size: clamp(15px, 1.3vw, 17px);
-  color: rgba(190, 210, 235, 0.75);
-  line-height: 1.6;
-  max-width: 480px;
-  margin: 0 auto 32px;
+  font-size: clamp(16px, 1.55vw, 20px);
+  color: rgba(200, 218, 242, 0.82);
+  line-height: 1.62;
+  max-width: min(540px, 42ch);
+  margin: 0 auto 36px;
   position: relative;
   z-index: 1;
   font-weight: 400;
@@ -1020,7 +1085,7 @@ h3 {
 }
 .hero-ctas {
   display: flex;
-  gap: 12px;
+  gap: 14px;
   justify-content: center;
   flex-wrap: wrap;
   margin-bottom: 0;
@@ -1128,7 +1193,7 @@ h3 {
   width: 100%;
   background: transparent;
   position: relative;
-  margin-top: 0;
+  margin-top: -clamp(8px, 2vh, 28px);
 }
 .pipeline-wrap {
   position: relative;
@@ -2066,6 +2131,7 @@ h3 {
   backdrop-filter: blur(16px) saturate(1.1);
   box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.03) inset;
   transform-style: preserve-3d;
+  isolation: isolate;
   transition:
     transform 0.45s cubic-bezier(0.22, 1, 0.36, 1),
     box-shadow 0.45s ease,
@@ -2073,11 +2139,13 @@ h3 {
 }
 .testi:hover {
   transform: translateY(-8px) perspective(1400px) rotateY(2.5deg);
-  border-color: var(--bdr-2);
+  border-color: rgba(127, 249, 255, 0.4);
   box-shadow:
     0 32px 64px rgba(8, 12, 28, 0.42),
-    0 0 0 1px rgba(112, 145, 230, 0.2),
-    0 0 48px rgba(61, 82, 160, 0.14);
+    0 0 0 1px rgba(0, 255, 255, 0.18),
+    0 0 12px rgba(255, 255, 255, 0.05),
+    0 0 28px rgba(0, 255, 255, 0.24),
+    0 0 44px rgba(127, 249, 255, 0.14);
 }
 .testi::before {
   content: '"';
@@ -2089,6 +2157,36 @@ h3 {
   top: 4px;
   left: 18px;
   line-height: 1;
+  z-index: 1;
+}
+.testi::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0;
+  transition: opacity 0.45s ease;
+  background:
+    radial-gradient(
+      ellipse 70% 56% at 50% 42%,
+      rgba(255, 255, 255, 0.1) 0%,
+      rgba(127, 249, 255, 0.16) 22%,
+      rgba(0, 255, 255, 0.08) 45%,
+      transparent 70%
+    ),
+    linear-gradient(
+      90deg,
+      transparent 0%,
+      transparent calc(50% - 1px),
+      rgba(0, 255, 255, 0.07) 50%,
+      transparent calc(50% + 1px),
+      transparent 100%
+    );
+}
+.testi:hover::after {
+  opacity: 0.78;
 }
 .testi p {
   font-size: 14px;
@@ -2097,17 +2195,22 @@ h3 {
   font-style: italic;
   margin-bottom: 24px;
   position: relative;
+  z-index: 2;
 }
 .testi-who {
   font-family: var(--f-d);
   font-size: 13px;
   font-weight: 700;
   color: var(--text);
+  position: relative;
+  z-index: 2;
 }
 .testi-role {
   font-size: 11px;
   color: var(--text-3);
   margin-top: 2px;
+  position: relative;
+  z-index: 2;
 }
 .placeholder-note {
   text-align: center;
@@ -2249,6 +2352,27 @@ h3 {
   min-height: calc(100vh - var(--nav-scroll-offset, 72px));
   display: grid;
   align-items: center;
+}
+
+/* First fold: clear fixed nav + gap; no forced inner min-height (avoids dead space above pipeline) */
+.stage.stage-hero {
+  align-items: start;
+  min-height: auto;
+  padding-top: max(
+    clamp(120px, 14vh, 188px),
+    calc(12px + var(--nav-scroll-offset, 80px) + clamp(44px, 5.5vh, 64px))
+  );
+  padding-bottom: clamp(28px, 4vh, 48px);
+}
+
+.stage.stage-hero > .stage-inner.hero-inner {
+  min-height: 0;
+}
+
+.stage.stage-hero .btn {
+  padding: 13px 26px;
+  font-size: 15px;
+  border-radius: 10px;
 }
 
 .stage-inner {
