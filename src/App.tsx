@@ -1,4 +1,4 @@
-import { motion, useReducedMotion, useScroll, useTransform } from 'framer-motion';
+import { motion, useReducedMotion, useScroll, useTransform, type MotionValue } from 'framer-motion';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import './index.css';
 import img2 from './assets/img2.png';
@@ -62,6 +62,10 @@ function PipelineArc() {
     };
 
     const frame = (ts: number) => {
+      if (document.hidden) {
+        rafRef.current = requestAnimationFrame(frame);
+        return;
+      }
       if (!startTs) startTs = ts;
       const elapsed = ts - startTs - DELAY;
       const raw = Math.min(1, Math.max(0, elapsed / DRAW_DUR));
@@ -195,42 +199,65 @@ const EASE: [number, number, number, number] = [0.22, 1, 0.36, 1];
 
 const VIEWPORT_ONCE = { once: true as const, amount: 0.15 as const, margin: '0px 0px -12% 0px' as const };
 
+function ScrollRevealWord({
+  word,
+  index,
+  wordCount,
+  breakAfterIndex,
+  scrollYProgress,
+}: {
+  word: string;
+  index: number;
+  wordCount: number;
+  breakAfterIndex: number;
+  scrollYProgress: MotionValue<number>;
+}) {
+  const start = index / wordCount;
+  const end = start + 1 / wordCount;
+  const targetColor = 'rgba(137, 208, 245, 1)';
+  const startColor = 'rgba(255, 255, 255, 0.25)';
+  const color = useTransform(scrollYProgress, [start, end], [startColor, targetColor]);
+  const targetShadow = '0px 0px 24px rgba(137, 208, 245, 0.4)';
+  const textShadow = useTransform(scrollYProgress, [start, end], [
+    '0px 0px 0px rgba(137, 208, 245, 0)',
+    targetShadow,
+  ]);
+
+  return (
+    <span>
+      <motion.span style={{ color, textShadow, display: 'inline-block' }}>
+        {word}
+      </motion.span>
+      {index === breakAfterIndex ? <br /> : <span style={{ display: 'inline-block', width: '0.28em' }} />}
+    </span>
+  );
+}
+
 function ScrollRevealHeading() {
   const container = useRef<HTMLDivElement>(null);
   const { scrollYProgress } = useScroll({
     target: container,
-    offset: ['start 85%', 'start 40%']
+    offset: ['start 85%', 'start 40%'],
   });
 
   const words1 = "Enterprise AI deserves".split(" ");
   const words2 = "an operating system of its own.".split(" ");
   const allWords = [...words1, ...words2];
+  const breakAfterIndex = words1.length - 1;
 
   return (
     <div ref={container} style={{ textAlign: 'left', marginBottom: '80px', paddingLeft: '6%' }}>
       <h2 style={{ fontSize: 'clamp(40px, 5vw, 56px)', fontWeight: 700, margin: 0, lineHeight: 1.15 }}>
-        {allWords.map((word, i) => {
-          const start = i / allWords.length;
-          const end = start + (1 / allWords.length);
-          
-          // All words start dim and animate to light blue sequentially
-          const targetColor = 'rgba(137, 208, 245, 1)';
-          const startColor = 'rgba(255, 255, 255, 0.25)';
-          
-          const color = useTransform(scrollYProgress, [start, end], [startColor, targetColor]);
-          
-          const targetShadow = '0px 0px 24px rgba(137, 208, 245, 0.4)';
-          const textShadow = useTransform(scrollYProgress, [start, end], ['0px 0px 0px rgba(137, 208, 245, 0)', targetShadow]);
-
-          return (
-            <span key={i}>
-              <motion.span style={{ color, textShadow, display: 'inline-block' }}>
-                {word}
-              </motion.span>
-              {i === words1.length - 1 ? <br /> : <span style={{ display: 'inline-block', width: '0.28em' }} />}
-            </span>
-          );
-        })}
+        {allWords.map((word, i) => (
+          <ScrollRevealWord
+            key={`${word}-${i}`}
+            word={word}
+            index={i}
+            wordCount={allWords.length}
+            breakAfterIndex={breakAfterIndex}
+            scrollYProgress={scrollYProgress}
+          />
+        ))}
       </h2>
     </div>
   );
@@ -464,29 +491,35 @@ export default function App() {
   }, [scrollToSectionId]);
 
   useEffect(() => {
-    // Add scroll event logic
-    const handleScroll = () => {
+    let scrollRaf = 0;
+    let pending = false;
+    const flushScroll = () => {
+      pending = false;
       const scrollY = window.scrollY;
       const wh = window.innerHeight;
-      const maxScroll = document.body.scrollHeight - wh;
+      const maxScroll = Math.max(1, document.body.scrollHeight - wh);
       const progress = Math.max(0, Math.min(1, scrollY / maxScroll));
-      document.body.style.setProperty('--scroll-progress', progress.toString());
-      
-      const nav = document.querySelector('.nav');
+      document.body.style.setProperty('--scroll-progress', String(progress));
+
+      const nav = navRef.current;
       if (nav) {
-        if (scrollY > 50) {
-          nav.setAttribute('data-scrolled', 'true');
-        } else {
-          nav.removeAttribute('data-scrolled');
-        }
+        if (scrollY > 50) nav.setAttribute('data-scrolled', 'true');
+        else nav.removeAttribute('data-scrolled');
       }
     };
-    
-    window.addEventListener('scroll', handleScroll);
-    handleScroll();
+    const handleScroll = () => {
+      if (!pending) {
+        pending = true;
+        scrollRaf = window.requestAnimationFrame(flushScroll);
+      }
+    };
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    flushScroll();
 
     return () => {
       window.removeEventListener('scroll', handleScroll);
+      if (scrollRaf) window.cancelAnimationFrame(scrollRaf);
     };
   }, []);
 
