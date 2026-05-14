@@ -230,7 +230,7 @@ export function AiOpportunityRadar() {
       <div className="radar-wrap">
         <div className="radar-canvas">
           <svg
-            viewBox="-110 -110 220 220"
+            viewBox="-124 -124 248 248"
             className="radar-svg"
             preserveAspectRatio="xMidYMid meet"
           >

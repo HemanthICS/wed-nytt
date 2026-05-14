@@ -1,7 +1,6 @@
 import { motion, useReducedMotion, useScroll, useTransform, type MotionValue } from 'framer-motion';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import './index.css';
-import img2 from './assets/img2.png';
 import img3 from './assets/img3.png';
 import img4 from './assets/img4.svg';
 import whyTruth from './assets/why-truth.svg';
@@ -199,6 +198,37 @@ const EASE: [number, number, number, number] = [0.22, 1, 0.36, 1];
 
 const VIEWPORT_ONCE = { once: true as const, amount: 0.15 as const, margin: '0px 0px -12% 0px' as const };
 
+const FACTORY_AGENTS = [
+  {
+    prefix: 'Dev',
+    dot: 'done' as const,
+    status: 'claims_handler.py · done',
+    role: 'Build agent',
+    desc: 'Generates production code from Blueprint spec. File-by-file visibility. Spec-driven. No guesswork.',
+  },
+  {
+    prefix: 'Test',
+    dot: 'run' as const,
+    status: 'test_eligibility.py · running…',
+    role: 'Quality + review agent',
+    desc: 'Writes and runs test suites against the Test Contract. Reviews code quality. Coverage enforced before push.',
+  },
+  {
+    prefix: 'Secure',
+    dot: 'run' as const,
+    status: 'CVE scan · 2 flagged, remediating',
+    role: 'Security agent',
+    desc: 'SAST, CVE scanning, compliance checks at every stage. Security is not a post-build step.',
+  },
+  {
+    prefix: 'Data',
+    dot: 'wait' as const,
+    status: 'queued · data layer Sprint 3',
+    role: 'Data engineering agent',
+    desc: 'Pipelines, schemas, migrations, integrations. PHI and PII handling built in from the Blueprint.',
+  },
+];
+
 function ScrollRevealWord({
   word,
   index,
@@ -326,6 +356,48 @@ export default function App() {
               y: 0,
               transition: { duration: 0.72, ease: EASE },
             },
+          },
+    [reduce]
+  );
+
+  const factoryAgentStack = useMemo(
+    () =>
+      reduce
+        ? { hidden: {}, visible: {} }
+        : {
+            hidden: {},
+            visible: { transition: { staggerChildren: 0.11, delayChildren: 0.06 } },
+          },
+    [reduce]
+  );
+
+  const factoryAgentCard = useMemo(
+    () =>
+      reduce
+        ? { hidden: { opacity: 1, y: 0 }, visible: { opacity: 1, y: 0 } }
+        : {
+            hidden: { opacity: 0, y: 20 },
+            visible: {
+              opacity: 1,
+              y: 0,
+              transition: {
+                duration: 0.48,
+                ease: EASE,
+                staggerChildren: 0.065,
+                delayChildren: 0.04,
+              },
+            },
+          },
+    [reduce]
+  );
+
+  const factoryAgentLine = useMemo(
+    () =>
+      reduce
+        ? { hidden: { opacity: 1, y: 0 }, visible: { opacity: 1, y: 0 } }
+        : {
+            hidden: { opacity: 0, y: 8 },
+            visible: { opacity: 1, y: 0, transition: { duration: 0.38, ease: EASE } },
           },
     [reduce]
   );
@@ -635,9 +707,6 @@ export default function App() {
      NAV
      ============================================================ */}
 <header ref={navRef} className="nav" data-nav="">
-  <a className="nav-brand" href="#top" aria-label="SENZAI">
-    <img src={img2} alt="SENZAI" className="nav-mark" />
-  </a>
   <nav className="nav-links" aria-label="Primary">
     <a href="#problem">Why Senzai</a>
     <a href="#decide">Decide</a>
@@ -906,7 +975,7 @@ export default function App() {
         </ul>
       </motion.div>
       <motion.div className="split-art" variants={staggerItem}>
-        <div className="screen tilt">
+        <div className="screen tilt screen-radar">
           <div className="screen-bar">
             <span className="dot dot-r"></span><span className="dot dot-y"></span><span className="dot dot-g"></span>
             <span className="screen-title">AI Opportunity Radar</span>
@@ -1018,57 +1087,30 @@ export default function App() {
     viewport={VIEWPORT_ONCE}
     variants={sectionVariants}
   >
-    <motion.div className="stage-inner" variants={staggerContainer} initial="hidden" whileInView="visible" viewport={VIEWPORT_ONCE}>
-      <motion.div className="section-head section-head-center" variants={staggerItem}>
+    <motion.div className="stage-inner split" variants={staggerContainer} initial="hidden" whileInView="visible" viewport={VIEWPORT_ONCE}>
+      <motion.div className="split-copy" variants={staggerItem}>
         <div className="eyebrow">03 · Accelerate</div>
         <h2>Blueprint in.<br />Governed outcome out.</h2>
         <p className="lede">
           The Agent Factory takes the frozen Blueprint, runs parallel Senz agent threads, and produces a full runnable POC. Lock it and push to your IDE of choice — with epics, stories, and sprints ready.
         </p>
+        <ul className="bullets">
+          <li>
+            <strong>Planner → Builder → Verifier.</strong>
+            Human checkpoint after planning. Every build is spec-gated. No surprise outputs, no unapproved runs.
+          </li>
+          <li>
+            <strong>Full POC, not scaffolding.</strong>
+            The deliverable is a viewable, runnable product — not a code outline. Refine conversationally with agents before final push.
+          </li>
+          <li>
+            <strong>IDE handoff with user stories.</strong>
+            Push to Cursor, VS Code, or IntelliJ. Epics, stories, and sprint structure included — your team picks up exactly where SENZAI left off.
+          </li>
+        </ul>
       </motion.div>
 
-      <motion.div className="split" variants={staggerContainer}>
-        <motion.div className="split-copy" variants={staggerItem}>
-          <ul className="bullets">
-            <li>
-              <strong>Planner → Builder → Verifier.</strong>
-              Human checkpoint after planning. Every build is spec-gated. No surprise outputs, no unapproved runs.
-            </li>
-            <li>
-              <strong>Full POC, not scaffolding.</strong>
-              The deliverable is a viewable, runnable product — not a code outline. Refine conversationally with agents before final push.
-            </li>
-            <li>
-              <strong>IDE handoff with user stories.</strong>
-              Push to Cursor, VS Code, or IntelliJ. Epics, stories, and sprint structure included — your team picks up exactly where SENZAI left off.
-            </li>
-          </ul>
-
-          <div className="agents">
-            <div className="agent-card">
-              <div className="agent-name"><span className="agent-prefix">Dev</span>Senz</div>
-              <div className="agent-role">Build Agent</div>
-              <p>Generates production code from Blueprint spec. File-by-file visibility. Spec-driven. No guesswork.</p>
-            </div>
-            <div className="agent-card">
-              <div className="agent-name"><span className="agent-prefix">Test</span>Senz</div>
-              <div className="agent-role">Quality + Review Agent</div>
-              <p>Writes and runs test suites against the Test Contract. Reviews code quality. Coverage enforced before push.</p>
-            </div>
-            <div className="agent-card">
-              <div className="agent-name"><span className="agent-prefix">Data</span>Senz</div>
-              <div className="agent-role">Data Engineering Agent</div>
-              <p>Pipelines, schemas, migrations, integrations. PHI and PII handling built in from the Blueprint.</p>
-            </div>
-            <div className="agent-card">
-              <div className="agent-name"><span className="agent-prefix">Secure</span>Senz</div>
-              <div className="agent-role">Security Agent</div>
-              <p>SAST, CVE scanning, compliance checks at every stage. Security is not a post-build step.</p>
-            </div>
-          </div>
-        </motion.div>
-
-        <motion.div className="split-art" variants={staggerItem}>
+      <motion.div className="split-art" variants={staggerItem}>
           <div className="screen tilt">
             <div className="screen-bar">
               <span className="dot dot-r"></span><span className="dot dot-y"></span><span className="dot dot-g"></span>
@@ -1080,10 +1122,37 @@ export default function App() {
                 <div className="fp active">Builder</div>
                 <div className="fp">Verifier</div>
               </div>
-              <div className="fac-row"><span className="fr-dot done"></span><span className="fr-name"><b>Dev</b>Senz</span><span className="fr-file">claims_handler.py · done</span></div>
-              <div className="fac-row"><span className="fr-dot run"></span><span className="fr-name"><b>Test</b>Senz</span><span className="fr-file">test_eligibility.py · running…</span></div>
-              <div className="fac-row"><span className="fr-dot run"></span><span className="fr-name"><b>Secure</b>Senz</span><span className="fr-file">CVE scan · 2 flagged, remediating</span></div>
-              <div className="fac-row"><span className="fr-dot wait"></span><span className="fr-name"><b>Data</b>Senz</span><span className="fr-file">queued · data layer Sprint 3</span></div>
+              <motion.div
+                className="fac-agent-stack"
+                variants={factoryAgentStack}
+                initial="hidden"
+                whileInView="visible"
+                viewport={VIEWPORT_ONCE}
+              >
+                {FACTORY_AGENTS.map((agent) => (
+                  <motion.div
+                    key={agent.prefix}
+                    className="fac-row fac-row-rich"
+                    variants={factoryAgentCard}
+                  >
+                    <motion.div className="fac-row-top" variants={factoryAgentLine}>
+                      <span className={`fr-dot ${agent.dot}`} aria-hidden="true" />
+                      <span className="fr-name">
+                        <b>{agent.prefix}</b>Senz
+                      </span>
+                      <span
+                        className={`fr-file${agent.dot === 'run' ? ' fr-file-live' : ''}`}
+                      >
+                        {agent.status}
+                      </span>
+                    </motion.div>
+                    <motion.div className="fac-row-body" variants={factoryAgentLine}>
+                      <div className="fac-row-role">{agent.role}</div>
+                      <p className="fac-row-desc">{agent.desc}</p>
+                    </motion.div>
+                  </motion.div>
+                ))}
+              </motion.div>
               <div className="fac-section">Sprint Plan · Jira Synced</div>
               <div className="fac-block">
                 Epic 1 · Core claims engine (8 stories) ✓<br />
@@ -1094,7 +1163,6 @@ export default function App() {
             </div>
           </div>
         </motion.div>
-      </motion.div>
     </motion.div>
   </motion.section>
 

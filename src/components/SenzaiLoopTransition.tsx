@@ -96,9 +96,25 @@ function TransitionCard({
   const height  = useTransform(progress, p1Range, [CARD_H, 32]);
 
   // Border / background fade out mid-way through the animation
-  const borderOpacity = useTransform(progress, [0, 0.35, 0.6], [1, 0.4, 0]);
-  const bgOpacity     = useTransform(progress, [0, 0.35, 0.6], [1, 0.3, 0]);
-  const cardOpacity   = useTransform(progress, [dissolveStart, dissolveEnd], [1, 0]);
+  const borderColor = useTransform(
+    progress,
+    [0, 0.35, 0.6],
+    [
+      'rgba(15, 34, 54, 0.15)',
+      'rgba(15, 34, 54, 0.08)',
+      'rgba(15, 34, 54, 0)',
+    ]
+  );
+  const bgColor = useTransform(
+    progress,
+    [0, 0.35, 0.6],
+    [
+      'rgba(255, 255, 255, 1)',
+      'rgba(255, 255, 255, 0.75)',
+      'rgba(255, 255, 255, 0.35)',
+    ]
+  );
+  const cardOpacity = useTransform(progress, [dissolveStart, dissolveEnd], [1, 0]);
 
   const pointerEvents = useTransform(
     progress,
@@ -115,8 +131,8 @@ function TransitionCard({
         height,
         opacity: cardOpacity,
         pointerEvents: pointerEvents as MotionValue<'auto' | 'none'>,
-        borderColor: borderOpacity as unknown as string,
-        background: bgOpacity as unknown as string,
+        borderColor,
+        backgroundColor: bgColor,
       }}
     >
       <motion.span
